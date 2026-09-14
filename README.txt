@@ -11,6 +11,7 @@ game-server.mjs — bundled authoritative game logic and private room API.
 audio-runtime.js — readable announcement queue, readiness buffer and sequencing.
 client.js — editable game client source, including the existing bundled UI.
 build.mjs — rebuilds the self-contained HTML from the two JavaScript sources.
+intro.html — opening-screen title and OpenAI/Anthropic development credit.
 tests/ — automated speech, sequencing, permissions and multiplayer API checks.
 FONT-LICENSE.txt — bundled font license.
 

@@ -1,6 +1,10 @@
 import fs from 'node:fs';
 const file = new URL('./Naatile-Mafia.html', import.meta.url);
-const html = fs.readFileSync(file, 'utf8');
+let html = fs.readFileSync(file, 'utf8');
+const intro = fs.readFileSync(new URL('./intro.html', import.meta.url), 'utf8').trim();
+const introPattern = /<div class="game-intro"[^]*?<\/div><\/div>/;
+if (!introPattern.test(html)) throw Error('Opening screen not found; refusing to modify an unknown HTML layout.');
+html = html.replace(introPattern, () => intro);
 const scripts = [...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)];
 if (scripts.length !== 3) throw Error('Expected three inline scripts; refusing to modify an unknown HTML layout.');
 const code = ['audio-runtime.js', 'client.js'].map(name => fs.readFileSync(new URL(name, import.meta.url), 'utf8')).join('\n');
