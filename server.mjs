@@ -25,5 +25,6 @@ const server=createServer(async(req,res)=>{
  }catch{if(!res.headersSent)res.writeHead(500);res.end('Unable to serve this request.');}
 });
 server.requestTimeout=15000;
-server.listen(Number(process.env.PORT||8080),'0.0.0.0',()=>console.log('Naatile Mafia listening on port '+(process.env.PORT||8080)));
+server.listen(Number(process.env.PORT||8080),'0.0.0.0',()=>console.log('Naatile Mafia listening on port '+server.address().port));
 const cleanup=setInterval(()=>sql.prepare('DELETE FROM mafia_rooms WHERE updated<?').run(Date.now()-86400000),3600000);cleanup.unref();
+export {server};

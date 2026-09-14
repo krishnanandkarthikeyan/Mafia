@@ -1,0 +1,10 @@
+import fs from 'node:fs';
+const file = new URL('./Naatile-Mafia.html', import.meta.url);
+const html = fs.readFileSync(file, 'utf8');
+const scripts = [...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)];
+if (scripts.length !== 3) throw Error('Expected three inline scripts; refusing to modify an unknown HTML layout.');
+const code = ['audio-runtime.js', 'client.js'].map(name => fs.readFileSync(new URL(name, import.meta.url), 'utf8')).join('\n');
+if (/<\/script/i.test(code)) throw Error('Source contains an unsafe closing script tag.');
+const old = scripts[2];
+fs.writeFileSync(file, html.slice(0, old.index) + '<script>' + code + '</script>' + html.slice(old.index + old[0].length));
+console.log('Built self-contained Naatile-Mafia.html');

@@ -5,20 +5,10 @@ var database = () => globalThis.mafiaDatabase;
 var env = {};
 
 // game/death-audio.mjs
-var DEATH_TRACKS = [
-  { key: "death0", path: "/death-chath2.wav", seconds: 15.94 },
-  { key: "death1", path: "/audio/Mohanlal.mp3", seconds: 16.59 },
-  { key: "death2", path: "/audio/jagathy.mp3", seconds: 33.26 },
-  { key: "death3", path: "/audio/dileep.mp3", seconds: 12.52 }
-];
+var DEATH_TRACKS = [{ key: "night-death", path: "/audio/chath(2).mp3", seconds: 15.94 }];
 function deathAudioPlan(events, eventId) {
-  let count = 0;
-  for (const event2 of events) {
-    const victims = event2.type === "dawn" ? event2.mafiaVictims || [] : [];
-    const plan = victims.map((target) => ({ target, ordinal: count, ...DEATH_TRACKS[count++ % DEATH_TRACKS.length] }));
-    if (event2.id === eventId) return plan;
-  }
-  return [];
+  const e = events.find((e) => e.id === eventId);
+  return e?.type === "dawn" && e.mafiaVictims?.length ? [{ ...DEATH_TRACKS[0], target: e.mafiaVictims[0] }] : [];
 }
 function deathRevealSeconds(events, eventId) {
   if (events.find((e) => e.id === eventId)?.type === "eliminated") return 35;
@@ -75,6 +65,9 @@ function phase(r, p, seconds = 60) {
   r.phaseStartedAt = Date.now();
   r.actionOpenAt = 0;
   r.roleCompleteAt = 0;
+  r.announcementAcks = {};
+  r.presentationAcks = {};
+  r.presentationSkipped = false;
   r.deadline = Date.now() + seconds * 1e3;
   r.paused = false;
   r.players.forEach((p2) => p2.hand = false);
@@ -189,6 +182,9 @@ function resolveVote(r, early = false) {
 function tick(r) {
   if (r.config.local || r.paused || ["lobby", "end"].includes(r.phase)) return false;
   if (Date.now() < r.deadline && !(r.phase === "night" && r.roleCompleteAt && Date.now() >= r.roleCompleteAt)) return false;
+  // Death playback uses real completion, not an estimated speech duration.
+  // A bounded fallback keeps a disconnected primary host from blocking the room.
+  if (["dawn", "verdict"].includes(r.phase) && !r.presentationAcks?.[r.hostId] && Date.now() < r.phaseStartedAt + 150000) return false;
   advance(r);
   return true;
 }
@@ -248,34 +244,53 @@ function advance(r) {
 function act(r, pid, type, data = {}, local = false) {
   const p = r.players.find((p2) => p2.id === pid && p2.kind === "player");
   if (!p) throw Error("Your seat was not found.");
+  if (type === "cohost") {
+    if (pid !== r.hostId) throw Error("Only the primary host can assign or remove the co-host.");
+    if (data.target !== null && !r.players.some((x) => x.id === data.target && x.kind === "player" && x.id !== r.hostId)) throw Error("Choose another player as co-host.");
+    r.coHostId = data.target;
+    return;
+  }
+  if (["announcementDone", "presentationDone"].includes(type)) {
+    if (data.epoch !== r.epoch) throw Error("The phase changed.");
+    if (r.paused) throw Error("Resume the round first.");
+    const key = type === "announcementDone" ? "announcementAcks" : "presentationAcks";
+    if (type === "presentationDone" && !r.announcementAcks?.[pid]) throw Error("Finish the announcement first.");
+    (r[key] ||= {})[pid] = true;
+    return;
+  }
   if (type === "ready") {
     if (r.phase !== "lobby" || p.kind !== "player") throw Error("Only players in the lobby can ready up.");
     p.ready = !!data.ready;
     return;
   }
   if (["start", "advance", "pause", "rematch", "continue"].includes(type)) {
-    if (pid !== r.hostId) throw Error("Only the room host can use this control.");
+    if (pid !== r.hostId && !(pid === r.coHostId && ["continue", "pause"].includes(type))) throw Error("Only the room host can use this control.");
     if (type === "start") return start(r);
     if (type === "continue") {
       if (data.epoch !== r.epoch) throw Error("The phase changed.");
       if (r.paused) throw Error("Resume the round first.");
-      const allowed = ["intro", "sleep", "discussion"].includes(r.phase) || r.phase === "dawn" && !r.events.filter((e) => e.type === "dawn").at(-1)?.victims.length || r.phase === "verdict" && r.events.filter((e) => ["eliminated", "skipped"].includes(e.type)).at(-1)?.type === "skipped";
-      if (!allowed) throw Error("This decision or reveal cannot be skipped.");
+      if (!canSkip(r, pid)) throw Error("Finish God's announcement first. Voting and role decisions cannot be skipped.");
+      if (r.phase === "end") { r.presentationSkipped = true; return; }
       return advance(r);
     }
     if (type === "advance") {
       if (!r.config.local || !local) throw Error("Computer God advances online rounds automatically.");
       if (data.epoch !== r.epoch) throw Error("The phase changed. Check the table.");
       if (r.paused) throw Error("Resume the round first.");
+      if (!canSkip(r, pid) || r.phase === "end") throw Error("Required decisions cannot be skipped.");
       return advance(r);
     }
     if (type === "pause") {
       if (["lobby", "end"].includes(r.phase)) throw Error("There is no active round to pause.");
       if (r.paused) {
         r.deadline = Date.now() + r.remaining;
+        if (r.roleCompleteAt) r.roleCompleteAt = Date.now() + r.roleRemaining;
+        r.phaseStartedAt += Date.now() - r.pausedAt;
         r.paused = false;
       } else {
         r.remaining = Math.max(0, r.deadline - Date.now());
+        r.roleRemaining = Math.max(0, r.roleCompleteAt - Date.now());
+        r.pausedAt = Date.now();
         r.paused = true;
       }
       return;
@@ -284,7 +299,10 @@ function act(r, pid, type, data = {}, local = false) {
       if (r.phase !== "end") throw Error("Finish this match first.");
       const fresh = createRoom(p.name, r.config);
       fresh.epoch = r.epoch + 1;
-      for (const k of Object.keys(fresh)) if (!["id", "players", "sessions", "revision", "hostId"].includes(k)) r[k] = fresh[k];
+      for (const k of Object.keys(fresh)) if (!["id", "players", "sessions", "revision", "hostId", "coHostId"].includes(k)) r[k] = fresh[k];
+      r.announcementAcks = {};
+      r.presentationAcks = {};
+      r.presentationSkipped = false;
       r.players.forEach((p2) => {
         p2.alive = true;
         p2.role = p2.kind === "god" ? "god" : null;
@@ -362,6 +380,10 @@ function completeRole(r) {
   const actors = living(r).filter((p) => p.role === r.nightRole);
   if (actors.length && actors.every((p) => Object.hasOwn(r.actions, p.id))) r.roleCompleteAt = Date.now() + 1200;
 }
+function canSkip(r, pid) {
+  return (pid === r.hostId || pid === r.coHostId) && !r.paused &&
+    ["intro", "sleep", "discussion", "dawn", "verdict", "end"].includes(r.phase) && !r.presentationSkipped && !!r.announcementAcks?.[pid];
+}
 function publicView(r, pid) {
   const p = r.players.find((x) => x.id === pid && x.kind === "player");
   if (!p) throw Error("No human can take the computer God seat.");
@@ -369,6 +391,10 @@ function publicView(r, pid) {
   const known = (x) => r.phase === "end" || p.role === "mafia" && x.role === "mafia";
   return {
     id: r.id,
+    hostId: r.hostId,
+    coHostId: r.coHostId || null,
+    canSkip: canSkip(r, pid),
+    presentationSkipped: !!r.presentationSkipped,
     phase: r.phase,
     epoch: r.epoch,
     night: r.night,
