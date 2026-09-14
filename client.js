@@ -26712,7 +26712,7 @@ void main() {
       case "dawn":
         {
           let o = (r("dawn")?.victims || []).map(i);
-          return a("The village wakes. Everyone, open your eyes. ", "\u0D17\u0D4D\u0D30\u0D3E\u0D2E\u0D02 \u0D09\u0D23\u0D30\u0D41\u0D28\u0D4D\u0D28\u0D41. \u0D0E\u0D32\u0D4D\u0D32\u0D3E\u0D35\u0D30\u0D41\u0D02 \u0D15\u0D23\u0D4D\u0D23\u0D41 \u0D24\u0D41\u0D31\u0D15\u0D4D\u0D15\u0D42. ") + (o.length ? a(`${o.join(", ")} did not survive the night.`, `${o.join(", ")} \u0D30\u0D3E\u0D24\u0D4D\u0D30\u0D3F\u0D2F\u0D3F\u0D7D \u0D15\u0D4A\u0D32\u0D4D\u0D32\u0D2A\u0D4D\u0D2A\u0D46\u0D1F\u0D4D\u0D1F\u0D41.`) : a("Everyone survived the night. The reason stays secret.", "\u0D0E\u0D32\u0D4D\u0D32\u0D3E\u0D35\u0D30\u0D41\u0D02 \u0D30\u0D15\u0D4D\u0D37\u0D2A\u0D4D\u0D2A\u0D46\u0D1F\u0D4D\u0D1F\u0D41. \u0D15\u0D3E\u0D30\u0D23\u0D02 \u0D30\u0D39\u0D38\u0D4D\u0D2F\u0D2E\u0D3E\u0D23\u0D4D."));
+          return a("Everyone, wake up. Open your eyes. ", "\u0D17\u0D4D\u0D30\u0D3E\u0D2E\u0D02 \u0D09\u0D23\u0D30\u0D41\u0D28\u0D4D\u0D28\u0D41. \u0D0E\u0D32\u0D4D\u0D32\u0D3E\u0D35\u0D30\u0D41\u0D02 \u0D15\u0D23\u0D4D\u0D23\u0D41 \u0D24\u0D41\u0D31\u0D15\u0D4D\u0D15\u0D42. ") + (o.length ? a(`${o.join(", ")} did not survive the night.`, `${o.join(", ")} \u0D30\u0D3E\u0D24\u0D4D\u0D30\u0D3F\u0D2F\u0D3F\u0D7D \u0D15\u0D4A\u0D32\u0D4D\u0D32\u0D2A\u0D4D\u0D2A\u0D46\u0D1F\u0D4D\u0D1F\u0D41.`) : a("Everyone survived the night. The reason stays secret.", "\u0D0E\u0D32\u0D4D\u0D32\u0D3E\u0D35\u0D30\u0D41\u0D02 \u0D30\u0D15\u0D4D\u0D37\u0D2A\u0D4D\u0D2A\u0D46\u0D1F\u0D4D\u0D1F\u0D41. \u0D15\u0D3E\u0D30\u0D23\u0D02 \u0D30\u0D39\u0D38\u0D4D\u0D2F\u0D2E\u0D3E\u0D23\u0D4D."));
         }
       case "discussion":
         return a("Who is hiding a secret? Discuss your suspicions. Voting begins in one minute. The host can end discussion early.", "\u0D06\u0D30\u0D3E\u0D23\u0D4D \u0D30\u0D39\u0D38\u0D4D\u0D2F\u0D02 \u0D12\u0D33\u0D3F\u0D2A\u0D4D\u0D2A\u0D3F\u0D15\u0D4D\u0D15\u0D41\u0D28\u0D4D\u0D28\u0D24\u0D4D? \u0D1A\u0D7C\u0D1A\u0D4D\u0D1A\u0D2F\u0D4D\u0D15\u0D4D\u0D15\u0D41\u0D02 \u0D35\u0D4B\u0D1F\u0D4D\u0D1F\u0D3F\u0D28\u0D41\u0D02 \u0D15\u0D42\u0D1F\u0D3F \u0D30\u0D23\u0D4D\u0D1F\u0D4D \u0D2E\u0D3F\u0D28\u0D3F\u0D31\u0D4D\u0D31\u0D4D. \u0D38\u0D02\u0D38\u0D3E\u0D30\u0D3F\u0D1A\u0D4D\u0D1A\u0D36\u0D47\u0D37\u0D02 \u0D35\u0D4B\u0D1F\u0D4D\u0D1F\u0D4D \u0D09\u0D31\u0D2A\u0D4D\u0D2A\u0D3F\u0D15\u0D4D\u0D15\u0D42.");
@@ -26839,19 +26839,19 @@ void main() {
       name: n.name
     }));
   }
-  function Wd(t, e, a, n = 0, i = !1, fadeIn = .12) {
+  function Wd(t, e, a, n = 0, i = !1, fadeIn = .12, fadeOut = fadeIn > 0) {
     let r = t.createBufferSource(),
       s = t.createGain();
     r.buffer = e, r.loop = i, r.connect(s).connect(a);
     let o = t.currentTime,
       l = Math.max(.01, e.duration - n);
-    s.gain.setValueAtTime(fadeIn ? 0 : 1, o), s.gain.linearRampToValueAtTime(1, o + Math.min(fadeIn, l / 4)), i || (s.gain.setValueAtTime(1, o + l - Math.min(.25, l / 4)), s.gain.linearRampToValueAtTime(0, o + l));
+    s.gain.setValueAtTime(fadeIn ? 0 : 1, o), s.gain.linearRampToValueAtTime(1, o + Math.min(fadeIn, l / 4)), (i || !fadeOut) || (s.gain.setValueAtTime(1, o + l - Math.min(.25, l / 4)), s.gain.linearRampToValueAtTime(0, o + l));
     let u = !1,
       d = !1,
       f,
       c = new Promise(x => f = x),
       p = () => {
-        u || (u = !0, r.onended = null, r.disconnect(), s.disconnect(), f());
+        u || (u = !0, r.onended = null, r.disconnect(), s.disconnect(), f(d ? "cancelled" : "ended"));
       };
     return r.onended = p, r.start(0, n), {
       source: r,
@@ -26859,6 +26859,7 @@ void main() {
       stop(x = !1) {
         if (u) return c;
         if (x) {
+          d = !0;
           try {
             r.stop();
           } catch {}
@@ -26937,7 +26938,7 @@ void main() {
       let i = ++this.playToken,
         r = this.generation;
       if (await this.stopClip(), this.disposed || i !== this.playToken || r !== this.generation) return;
-      let s = Wd(this.ctx, e, this.clipGain, n);
+      let s = Wd(this.ctx, e, this.clipGain, n, false, 0);
       this.clip = {
         playback: s,
         kind: a
@@ -26990,6 +26991,9 @@ void main() {
     ag = class {
       constructor() {
         this.soundtrack = null;
+        this.exclusive = 0;
+        this.onExclusiveStart = async () => true;
+        this.onExclusiveEnd = () => {};
         this.notice = () => {};
         this.effectsUntil = 0;
         this.effectsRelease = null;
@@ -27015,13 +27019,31 @@ void main() {
         this.fanfareUntil = 0;
         this.onSpeaker = () => {};
       }
+      async beginExclusive() {
+        this.exclusive++;
+        if (this.exclusive > 1) return true;
+        this.stopVoices();
+        this.apply();
+        try {
+          if (await this.onExclusiveStart() === false) { this.endExclusive(); return false; }
+          // Already-scheduled effects finish before the pre-speech buffer begins.
+          const remaining = Math.max(0, this.effectsUntil - Date.now(), this.fanfareUntil - Date.now());
+          if (remaining) await new Promise(resolve => setTimeout(resolve, remaining));
+          return true;
+        } catch { this.endExclusive(); return false; }
+      }
+      endExclusive() {
+        this.exclusive = Math.max(0, this.exclusive - 1);
+        this.apply();
+        if (!this.exclusive) this.onExclusiveEnd();
+      }
       syncMatch(e) {
         if (!this.soundtrack || !e || e.phase === "lobby") return Promise.resolve();
         let a = e.events.find(n => n.type === "dealt");
         return a ? this.soundtrack.begin(e.id + ":" + a.id, a.at - (e.clockOffset || 0)) : Promise.resolve();
       }
       isFeaturePlaying() {
-        return this.isRevealing() || !!this.soundtrack?.isPlayingClip();
+        return this.exclusive > 0 || this.isRevealing() || !!this.soundtrack?.isPlayingClip();
       }
       stopVictory() {
         return this.soundtrack?.stopVictory() || Promise.resolve();
@@ -27031,7 +27053,7 @@ void main() {
         this.stopReveal(), await Promise.all([e?.done, this.stopVictory()]);
       }
       async playVictory(e, a) {
-        e === "mafia" || e === "village" ? await this.soundtrack?.victory(e, a) : a() && this.effect(e === "draw" ? "god" : "victory");
+        e === "mafia" || e === "village" ? await this.soundtrack?.victory(e, a) : a() && (this.effect(e === "draw" ? "god" : "victory", 0, true), await new Promise(resolve => setTimeout(resolve, e === "draw" ? 2000 : 6300)));
       }
       duckEffect(e) {
         this.effectsUntil = Math.max(this.effectsUntil, Date.now() + e * 1e3 + 100), this.effectsRelease && clearTimeout(this.effectsRelease), this.apply(), this.effectsRelease = setTimeout(() => {
@@ -27069,9 +27091,15 @@ void main() {
             if (this.ctx.state === "suspended") await this.ctx.resume();
             if (r !== this.deathEpoch || !e()) break;
             let l = Wd(this.ctx, o, this.buses.effects, 0, false, 0);
-            this.deathPlayback = l, await l.done, this.deathPlayback === l && (this.deathPlayback = null);
+            this.deathPlayback = l;
+            const status = await l.done;
+            if (this.deathPlayback === l) this.deathPlayback = null;
+            if (status !== "ended") return "cancelled";
+            await new Promise(resolve => setTimeout(resolve, 250));
           }
-          r === this.deathEpoch && (this.revealing = !1, this.revealUntil = 0, this.apply(), e() && a?.());
+          if (r !== this.deathEpoch || !e()) return "cancelled";
+          this.revealing = !1, this.revealUntil = 0, this.apply(), a?.();
+          return "ended";
         }
       }
       stopReveal() {
@@ -27110,10 +27138,10 @@ void main() {
             this.buses[n].gain.cancelScheduledValues(e), this.buses[n].gain.setTargetAtTime(0, e, .12);
             continue;
           }
-          let i = this.duckers > 0 ? n === "music" ? .18 : n === "ambience" ? .3 : n === "effects" ? .5 : 1 : 1;
+          let i = this.duckers > 0 || this.exclusive > 0 ? n === "music" ? .18 : n === "ambience" ? .3 : 1 : 1;
           this.buses[n].gain.setTargetAtTime(this.levels[n] * i * (Date.now() < this.revealUntil ? n === "music" ? .15 : n === "ambience" ? .3 : 1 : 1), e, .3);
         }
-        this.soundtrack?.levels(this.levels.music, this.levels.effects, this.duckers > 0 || Date.now() < this.revealUntil || Date.now() < this.effectsUntil || Date.now() < this.fanfareUntil);
+        this.soundtrack?.levels(this.levels.music, this.levels.effects, this.exclusive > 0 || this.duckers > 0 || Date.now() < this.revealUntil || Date.now() < this.effectsUntil || Date.now() < this.fanfareUntil);
       }
       duck(e) {
         this.duckers = Math.max(0, this.duckers + (e ? 1 : -1)), this.apply();
@@ -27189,8 +27217,8 @@ void main() {
           Math.random() < .2 && (this.noise(.25, .035, 650, "ambience", "bandpass", .6, -.9), this.tone(880, .15, .018, "ambience", "sine", .65, -.9));
         }
       }
-      effect(e, a = 0) {
-        if (!this.ctx) return;
+      effect(e, a = 0, required = false) {
+        if (!this.ctx || (this.exclusive > 0 && !required)) return;
         let n = (r, s = .3, o = .12, l = 0, u) => this.tone(r, s, o, "effects", "sine", l, a, u),
           i = (r = .15, s = .18, o = 1300, l = 0) => this.noise(r, s, o, "effects", "highpass", l, a);
         switch (e) {
@@ -27259,7 +27287,7 @@ void main() {
         e > 0 && e <= 5 && e !== this.lastCountdown && (this.lastCountdown = e, this.effect("countdown"));
       }
       playVoice(e, a = 0) {
-        if (!this.ctx) return;
+        if (!this.ctx || this.exclusive > 0) return;
         let n = this.voices.get(e.from);
         n || (n = {
           queue: [],
@@ -27288,7 +27316,7 @@ void main() {
       }
       stopVoices() {
         for (let [e, a] of this.voices) a.queue = [], a.audio && (a.audio.onended = null, a.audio.onerror = null, a.audio.pause(), a.audio.src = "", a.finish?.(), a.audio = null), this.onSpeaker(e, !1);
-        this.voices.clear(), this.duckers = 0, this.apply();
+        this.voices.clear(), this.apply();
       }
       dispose() {
         this.deathPlayback?.stop(!0), this.deathPlayback = null, this.soundtrack?.dispose(), this.soundtrack = null, this.effectsRelease && clearTimeout(this.effectsRelease), this.stopReveal(), clearInterval(this.timer), clearInterval(this.ambient), this.stopVoices(), this.ctx?.close(), this.ctx = null;
@@ -33808,7 +33836,9 @@ void main() {
     Qs.current = l, (0, we.useEffect)(() => {
       l === "chat" && Xo(0);
     }, [l]);
-    let Ta = (0, we.useRef)(null),
+    let pendingAudioView = (0, we.useRef)(null),
+      completedPresentations = (0, we.useRef)(new Set()),
+      Ta = (0, we.useRef)(null),
       La = (0, we.useRef)(null),
       Ze = (0, we.useRef)(null),
       Xr = (0, we.useRef)(null),
@@ -33862,6 +33892,20 @@ void main() {
     let U = (R, me) => a ? me : R;
     La.current = i, ei.current = s, (0, we.useEffect)(() => {
       Ze.current = new ag(), Ze.current.notice = We, ne.current = new eg(Ze.current, Ot, We), Ze.current.onSpeaker = (he, ut) => ee(kt => ut ? [...new Set([...kt, he])] : kt.filter(Fn => Fn !== he));
+      Ze.current.onExclusiveStart = async () => {
+        if (!La.current || ei.current !== "online") return true;
+        try {
+          const response = await Zo({ op: "command", type: "audioHold", data: { epoch: La.current.epoch } });
+          Yo(response.view);
+          return true;
+        } catch { return false; }
+      };
+      Ze.current.onExclusiveEnd = () => setTimeout(() => {
+        if (Ze.current?.exclusive || ne.current?.busy) return;
+        const pending = pendingAudioView.current;
+        pendingAudioView.current = null;
+        if (pending && ei.current === "online") Yo(pending);
+      }, 0);
       try {
         let he = JSON.parse(localStorage.getItem("mafia-audio") || "null");
         he && (Ae({
@@ -33911,6 +33955,11 @@ void main() {
       return Math.sin((ut - kt) / he * Math.PI * 2) * .8;
     };
     function Yo(R, me = []) {
+      // A delayed poll, reconnect or another controller must never cut local audio.
+      if (La.current?.id === R.id && La.current.epoch !== R.epoch && (Ze.current?.exclusive || ne.current?.busy)) {
+        if (!pendingAudioView.current || R.revision >= pendingAudioView.current.revision) pendingAudioView.current = R;
+        return;
+      }
       if (La.current?.id !== R.id && (_(0), $(0), ue(0)), !(La.current?.id === R.id && La.current.revision > R.revision)) {
         if (La.current && R.id !== La.current.id) ne.current?.stop();
         R.clockOffset = R.serverNow - Date.now(), (R.epoch !== Zu.current || R.id !== La.current?.id) && (D(null), pe(0), z(!1), (R.phase === "end" || ["role", "action", "chat"].includes(Qs.current)) && u(""), ne.current?.cancelPending(), Ze.current?.stopVoices(), Ze.current?.stopReveal(), Zu.current = R.epoch, nn([]), Xo(0), q(""), Ze.current && (Ze.current.lastCountdown = -1), Ze.current?.setPhase(R.phase, R.nightRole === "mafia" && R.me?.role === "mafia" ? "mafia" : "")), Yr.current && R.players.length !== Yr.current && Ze.current?.effect(R.players.length > Yr.current ? "join" : "leave"), Yr.current = R.players.length;
@@ -33945,6 +33994,10 @@ void main() {
           body: JSON.stringify({
             ...Ta.current,
             after: fn.current,
+            audioProtocol: 2,
+            audioEpoch: La.current?.epoch,
+            audioBusy: !document.hidden && (!!Ze.current?.exclusive || !!ne.current?.busy || !!La.current && !completedPresentations.current.has(La.current.id + ":" + La.current.epoch)),
+            audioVisible: !document.hidden,
             ...R
           }),
           cache: "no-store",
@@ -34168,10 +34221,9 @@ void main() {
       ne.current?.say(La.current, a, _e) || We("Spoken announcements are unavailable or muted. God's words are also shown on screen.");
     }
     (0, we.useEffect)(() => {
-      if (!i || i.paused || document.hidden) { ne.current?.stop(); return; }
-      if (!qe || !bt || _e.muted || !_e.master || !_e.voice) ne.current?.stop();
+      if (!i || document.hidden) return;
       let cancelled = false, presentationRun = 0;
-      const current = () => !cancelled && !document.hidden && La.current?.id === i.id && La.current?.epoch === i.epoch && !La.current?.paused;
+      const current = () => !cancelled && !document.hidden && La.current?.id === i.id && La.current?.epoch === i.epoch;
       const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
       const victims = Xy(i);
       const death = victims.length ? i.events.filter(event => event.night === i.night && ["dawn", "eliminated"].includes(event.type)).at(-1) : null;
@@ -34186,15 +34238,22 @@ void main() {
         }
         return false;
       };
-      const finished = () => {
+      const finished = async () => {
         vt(i.id + ":" + i.epoch);
         if (death) fe.current.add(death.id);
         if (winner && !ie.current.has(winner.id)) {
           ie.current.add(winner.id);
-          if (qe && !La.current?.presentationSkipped) Ze.current?.playVictory(i.winner, current);
+          if (qe && !La.current?.presentationSkipped) await Ze.current?.playVictory(i.winner, current);
         }
       };
       const present = async () => {
+        if (!current() || Ze.current?.exclusive || ne.current?.busy) return;
+        if (!await Ze.current.beginExclusive()) {
+          if (current()) setTimeout(() => { if (current()) present().catch(() => {}); }, 1500);
+          return;
+        }
+        try {
+        if (qe) await Ze.current.syncMatch(i);
         if (!current()) return;
         const run = ++presentationRun;
         const active = () => current() && presentationRun === run;
@@ -34205,23 +34264,24 @@ void main() {
           playDeath: async () => {
             if (!death || fe.current.has(death.id) || La.current?.presentationSkipped) return;
             const tracks = death.type === "eliminated" ? [Jm] : qy(i.events, death.id);
-            if (tracks.length) await Ze.current?.reveal(active, undefined, tracks);
+            if (tracks.length) return await Ze.current?.reveal(active, undefined, tracks);
           },
           animate: async () => {
             setDeathReady(i.id + ":" + i.epoch);
             if (death?.type === "eliminated" && !fe.current.has(death.id) && !La.current?.presentationSkipped) {
               k(death.target);
-              if (qe) Ze.current?.effect("gunner");
+              if (qe) Ze.current?.effect("gunner", 0, true);
               await wait(1300);
               if (current()) k(null);
             }
           },
           finished
         });
+        if (active()) completedPresentations.current.add(i.id + ":" + i.epoch);
+        } finally { Ze.current.endExclusive(); }
       };
       ve.current = () => present().catch(() => We("Announcement playback failed. Please try Replay again."));
       (async () => {
-        if (qe) await Ze.current?.syncMatch(i);
         if (current()) await present();
       })().catch(() => We("Announcement playback failed. Use Replay in God's controls."));
       return () => {
@@ -34229,12 +34289,10 @@ void main() {
         k(null);
         ve.current = undefined;
         ne.current?.cancelPending();
-        Ze.current?.stopReveal();
-        Ze.current?.stopVictory();
       };
-    }, [i?.id, i?.epoch, i?.paused, qe, bt, _e.muted, _e.master > 0, _e.voice > 0, visibilityPulse]);
+    }, [i?.id, i?.epoch, visibilityPulse]);
     (0, we.useEffect)(() => {
-      if (i?.presentationSkipped) {
+      if (i?.presentationSkipped && !Ze.current?.exclusive) {
         Ze.current?.stopReveal();
         Ze.current?.stopVictory();
       }
@@ -34714,19 +34772,21 @@ void main() {
                 children: re.find(R => R.id === ge.id)?.ready ? U("Ready \u2713", "\u0D24\u0D2F\u0D4D\u0D2F\u0D3E\u0D7C \u2713") : U("I\u2019m ready", "\u0D1E\u0D3E\u0D7B \u0D24\u0D2F\u0D4D\u0D2F\u0D3E\u0D7C")
               }), yt && (0, T.jsx)("button", {
                 className: "outline-button",
-                disabled: ae || re.length < (i.config.cannibal ? 12 : 8) || re.some(R => !R.ready),
+                disabled: ae || i.audioBlocked || re.length < (i.config.cannibal ? 12 : 8) || re.some(R => !R.ready),
                 onClick: () => L("start"),
                 children: U("Start Game", "\u0D15\u0D33\u0D3F \u0D24\u0D41\u0D1F\u0D19\u0D4D\u0D19\u0D3E\u0D02")
               })]
             }) : (0, T.jsxs)(T.Fragment, {
-              children: [(0, T.jsx)("button", {
+              children: [(0, T.jsxs)("button", {
                 className: "mini-card",
+                "aria-label": U("Check your secret role", "നിങ്ങളുടെ രഹസ്യ റോൾ കാണുക"),
                 onClick: () => {
                   z(!1), u("role");
                 },
-                children: (0, T.jsx)(Nb, {
-                  back: !0
-                })
+                children: [(0, T.jsx)(Nb, { back: !0 }), (0, T.jsxs)("span", {
+                  className: "role-card-caption",
+                  children: [(0, T.jsx)("strong", { children: U("YOUR ROLE", "നിങ്ങളുടെ റോൾ") }), (0, T.jsx)("span", { children: U("Tap to check", "തൊട്ടു നോക്കൂ") })]
+                })]
               }), (0, T.jsxs)("div", {
                 children: [(0, T.jsx)("button", {
                   className: "gold-button",

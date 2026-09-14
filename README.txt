@@ -10,7 +10,8 @@ server.mjs — HTTP server and persistent SQLite storage.
 game-server.mjs — bundled authoritative game logic and private room API.
 audio-runtime.js — readable announcement queue, readiness buffer and sequencing.
 client.js — editable game client source, including the existing bundled UI.
-build.mjs — rebuilds the self-contained HTML from the two JavaScript sources.
+role-card.css — scoped responsive styling for the enlarged role cards.
+build.mjs — rebuilds the self-contained HTML from JavaScript, intro and card CSS.
 intro.html — opening-screen title and OpenAI/Anthropic development credit.
 tests/ — automated speech, sequencing, permissions and multiplayer API checks.
 FONT-LICENSE.txt — bundled font license.
@@ -22,48 +23,60 @@ Open http://localhost:8080 to test.
 The server has no npm dependencies. Room data is stored in ./data.
 
 EDIT AND TEST
-After editing client.js or audio-runtime.js:
+After editing client.js, audio-runtime.js, role-card.css or intro.html:
   npm run build
   npm test
 Restart the server to load the rebuilt HTML. The delivered HTML is already built.
 
-THIS UPDATE
-God's voice lowers the music before speaking, resumes audio output, and waits
-700 milliseconds before submitting the complete command to the voice engine.
-Phase updates queue behind an announcement already speaking. Reminders and
-Replay cannot interrupt an active command. Merely changing window focus no
-longer cancels speech; returning from a hidden tab replays the current phase.
+THIS UPDATE — COMPLETE AUDIO SEQUENCES
+The supplied GitHub/Wix project is the base. All 21 embedded art/audio assets,
+fonts, room API routes and deployment configuration are preserved. No audio
+recordings were replaced or converted in this update.
 
-Night Mafia kill: finish God's wake-up/death announcement, then play
-chath(2).mp3 once for that event, then reveal the existing death effects.
-Voting elimination: finish God's elimination announcement, then play
-mohanlal.mp3, then show the existing lightning/elimination effect.
-The previous voting recording is removed from the embedded assets and code.
-The Chath recording already in the game was converted from WAV to MP3; it is
-not a new or substituted performance. The existing Mohanlal recording is kept.
+God's voice uses an exclusive audio sequence, initializes the output device,
+waits for installed voices, and allows 700ms for music to fade before speaking.
+It keeps the complete utterance alive and waits for the actual engine end event
+plus a 350ms output-buffer tail. No estimated duration marks speech successful.
+A silent looping warmup source stays alive through initialization and speech.
 
-Only an actual speech-end event releases a death recording. If narration is
-muted, unsupported, or fails, the game gives time to read the on-screen text
-and proceeds without falsely treating failed speech as successful playback.
+Night Mafia kill: complete wake-up/death announcement -> chath(2).mp3 from its
+first sample to natural end -> 250ms output tail -> existing death effects.
+Vote elimination: complete elimination announcement -> mohanlal.mp3 from its
+first sample to natural end -> 250ms output tail -> existing lightning effect.
+Music remains lowered throughout the whole sequence and fades back afterward.
+Death recordings have no fade-in or fade-out that could mask their syllables.
+Cancelled playback cannot count as a successfully completed death recording.
+
+Phase polls are deferred locally while audio is playing. The server also waits
+for each foreground player's audio, using a 20-second renewable lease carried
+by normal polls. An active connected player can renew past the old 150-second
+limit. A disconnected player's lease expires. The existing legacy-host fallback
+is retained. Decision deadlines are unchanged, and votes/actions remain usable
+during reminders; they cannot advance the phase until protected audio ends.
+
+God, death dialogue, victory clips and required effects run sequentially.
+Countdown, chat and incidental effects are suppressed during protected audio.
+Clearing chat audio cannot clear God's music-ducking state. Pause freezes the
+game clock without cancelling speech or death audio. Returning from a hidden
+tab replays the current announcement from its beginning.
+
+The bottom role card has a 120 x 156 CSS-pixel touch area on larger displays,
+102 x 144 on narrow portrait phones, and 144 x 94 in shallow landscape screens
+(previous landscape size: 36 x 48). It has larger icons and bilingual labels.
+The private hold-to-reveal card is enlarged too; releasing still hides the role.
 
 HOST AND CO-HOST
-The primary host opens Players and uses the Co-Host selector to assign another
-player. Choose "No Co-Host (remove status)" to revoke it. Changing the selector
-replaces the previous co-host. The primary host remains the owner, including
-after a rematch. Co-host status does not reveal secret roles or investigations.
+Existing ownership and permissions remain. Only the primary host assigns or
+removes a co-host, starts a game or rematches. Both managers may pause/resume
+and skip permitted waits. Skip now requires their FULL presentation completion
+and no connected player's active audio. It cannot cut a death or victory clip.
+Neither manager can skip voting, required night decisions or role-card reading.
+Secret roles and investigations are still private.
 
-Both managers can pause/resume and skip introductions, sleep-transition waits,
-discussion, and remaining dawn/verdict effects or waiting. The skip button is
-disabled until their own announcement finishes (or text-reading time completes).
-At the end of a game, it dismisses remaining effects, not starts a new game.
-Voting, runoff voting, role-card reading, and every night-role decision remain
-unskippable. These permissions are enforced by the server, not just the UI.
-Only the primary host can start/rematch or assign/remove the co-host.
-
-Automatic dawn/verdict transitions wait for the primary host's presentation
-completion. If that host disconnects, a 150-second phase limit prevents a
-permanent stall. An acknowledged host/co-host can still skip sooner. Voting
-and required-role timers are not shortened by this fallback.
+Muted/unsupported speech gives on-screen reading time and skips death dialogue.
+Speech-engine errors are reported rather than falsely claiming successful audio.
+Explicit mute, leaving the table, or hiding the browser can stop audio; ordinary
+phase updates, pause/resume, sound-effect events and music changes cannot.
 
 UPDATING YOUR EXISTING DEPLOYMENT
 Replace the project files in your connected repository, including the rebuilt
@@ -101,7 +114,7 @@ Audio calling/Discord integration is not provided by this standalone server.
 Game music, dialogues and device voice announcements remain included.
 
 VALIDATION
-Automated tests cover every generated English phase-command variant, all
+102 automated tests cover every generated English phase-command variant, all
 reminders, delayed voice loading, cold startup, queuing, error/cancellation,
 native speech events, death sequencing, sample-zero clip starts, co-host
 assignment/revocation, protected decisions, and eight HTTP clients against

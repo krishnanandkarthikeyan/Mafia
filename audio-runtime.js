@@ -1,6 +1,7 @@
 /* Shared, testable announcement lifecycle. No estimated duration can finish speech. */
 (() => {
   const PRE_SPEECH_MS = 700;
+  const POST_SPEECH_MS = 350; // Let the device drain its output buffer after the engine end event.
   class GodVoice {
     constructor(audio, speaking, notice = () => {}, lines, reminders) {
       Object.assign(this, { audio, speaking, notice, lines, reminders });
@@ -48,6 +49,7 @@
         this.utterance = null;
         this.active = null;
         if (state.ducked) this.audio.duck(false);
+        if (state.exclusive) this.audio.endExclusive();
         this.speaking(false);
         if (status === "error") this.notice("God's voice could not finish. Read the announcement on screen or use Replay to try again.");
         job.done?.(status);
@@ -58,6 +60,13 @@
         cleanups.push(() => { clearTimeout(timer); resolve(); });
       });
       try {
+        // Reserve the same protected lane used by the full death presentation.
+        if (this.audio.beginExclusive) {
+          const acquired = await this.audio.beginExclusive();
+          if (!acquired) return state.finish("cancelled");
+          if (state.finished) { this.audio.endExclusive(); return; }
+          state.exclusive = true;
+        }
         // Duck BEFORE submitting speech, including a cold audio device start.
         this.audio.duck(true);
         state.ducked = true;
@@ -68,6 +77,7 @@
         if (context?.state === "running") {
           const pad = context.createBufferSource();
           pad.buffer = context.createBuffer(1, Math.ceil(context.sampleRate * .8), context.sampleRate);
+          pad.loop = true; // Keep the output device warm through voice loading AND speech.
           pad.connect(context.destination);
           pad.start();
           cleanups.push(() => { try { pad.stop(); } catch {} pad.disconnect(); });
@@ -89,7 +99,14 @@
         if (document.hidden) return state.finish("cancelled");
         let startTimer;
         const started = () => { state.started = true; clearTimeout(startTimer); };
-        const ended = () => state.finish(state.started ? "ended" : "error");
+        const ended = () => {
+          if (!state.started) return state.finish("error");
+          if (state.ending || state.finished) return;
+          state.ending = true;
+          clearTimeout(failureTimer);
+          const tail = setTimeout(() => state.finish("ended"), POST_SPEECH_MS);
+          cleanups.push(() => clearTimeout(tail));
+        };
         startTimer = setTimeout(() => {
           if (!state.started) {
             state.finish("error");
@@ -149,11 +166,11 @@
       if (!current()) return;
     }
     const acknowledged = acknowledge("announcementDone");
-    if (result === "ended") await playDeath();
+    if (result === "ended" && await playDeath() === "cancelled") return;
     if (!current()) return;
     await animate();
     if (!current()) return;
-    finished();
+    await finished();
     if (await acknowledged && current()) await acknowledge("presentationDone");
   }
   function phaseText(view, lines, completedDeaths = new Set()) {
@@ -163,5 +180,5 @@
     const dawn = view?.phase === "end" && death?.type === "dawn" && death.victims?.length && !completedDeaths.has(death.id);
     return (dawn ? lines({ ...view, phase: "dawn" }, false) + " " : "") + lines(view, false);
   }
-  globalThis.MafiaAudio = { GodVoice, PRE_SPEECH_MS, presentAnnouncement, phaseText };
+  globalThis.MafiaAudio = { GodVoice, PRE_SPEECH_MS, POST_SPEECH_MS, presentAnnouncement, phaseText };
 })();

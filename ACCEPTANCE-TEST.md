@@ -47,7 +47,8 @@ speaker, or a particular operating-system voice.
    label on that player and the Host label on the original host.
 2. During discussion, both managers should see Skip. A normal player should not.
 3. During dawn or verdict, Skip remains disabled until that manager's God
-   announcement finishes. It can then bypass the remaining clip/effect/wait.
+   announcement AND death dialogue AND required effect finish, and all connected
+   players have finished their protected audio. It must not bypass a playing clip.
 4. Neither manager can skip voting, runoff, Mafia selection, Doctor selection,
    Detective selection, Gunner/Cannibal selection, or secret-card reading.
 5. Co-Host can pause/resume, but cannot start/rematch or assign another co-host.
@@ -59,3 +60,21 @@ speaker, or a particular operating-system voice.
 
 Deployment restarts can remove active rooms if the host has no persistent disk.
 Update between games and test with a new room.
+
+## Audio races and the bottom card
+
+- During each wake-up command, try chat, card taps, Replay, and pause/resume.
+  The complete announcement must remain audible without overlapping effects.
+- Have a second player press Skip while the first player still hears a death
+  recording. Skip must remain unavailable or be rejected by the server.
+- During a last-second reminder, confirm a vote/night choice. The decision must
+  still be accepted before its deadline; phase advancement waits for speech.
+- In a landscape browser window (for example 800 x 360), verify the larger bottom card
+  and its label are fully visible and easy to tap, with adjacent controls usable.
+  Switch to Malayalam and repeat. Open the card, hold to reveal, release to hide.
+- The automated checks passed, including an eight-session HTTP/SQLite test,
+  31 complete phase-announcement variants, every reminder, four literal wake-up
+  commands, full mixer sequencing and multiplayer audio leases. MP3s were fully
+  decoded without errors and match the supplied files byte-for-byte.
+- Browser visual checks and listening on physical audio hardware were
+  not available in the editing environment; the steps above remain device QA.

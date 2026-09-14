@@ -64,7 +64,7 @@ for (const [index, state] of scenarios.entries()) test(`full announcement ${inde
   assert.equal(r.events.filter(e => e[0] === 'cancel').length, 0);
   assert.equal(completions.length, 0);
   await r.advance(60000); assert.equal(completions.length, 0, 'long speech must not be force-finished');
-  r.utterances[0].onend(); await flush();
+  r.utterances[0].onend(); await r.advance(350); await flush();
   assert.deepEqual(completions, ['ended']);
   assert.equal(r.events.filter(e => e[0] === 'duck' && e[2] === false).length, 1);
 });
@@ -104,7 +104,7 @@ test('phase changes queue without interrupting God; reminders cannot interrupt',
   r.god.say(view('night', { nightRole: 'doctor' }), false, levels);
   assert.equal(r.god.remind(view('night'), 5, levels), false);
   await r.advance(9000); assert.equal(r.utterances.length, 1);
-  r.utterances[0].onend(); await flush(); await r.advance(700);
+  r.utterances[0].onend(); await r.advance(350); await flush(); await r.advance(700);
   assert.match(r.utterances[1].text, /^Doctor, wake up\./);
   assert.ok(!r.events.some(e => e[0] === 'cancel'));
 });
@@ -137,7 +137,8 @@ test('native speech uses pre-duck, complete text, matching IDs, and only real en
   r.listeners.get('mafia-god')({ detail: { id: command.id, status: 'start' } });
   await r.advance(60000); assert.equal(statuses.length, 0);
   r.listeners.get('mafia-god')({ detail: { id: command.id, status: 'end' } });
-  assert.deepEqual(statuses, ['ended']);
+  await r.advance(349); assert.deepEqual(statuses, []);
+  await r.advance(1); assert.deepEqual(statuses, ['ended']);
 });
 test('native startup failure releases ducking and never reports success', async () => {
   const r = rig({ native: true }), statuses = [];
@@ -200,7 +201,7 @@ test('reconnecting into a night-ending victory still announces death names befor
   const r = rig();
   const state = view('end', { events: [{ id: 'dawn', type: 'dawn', night: 1, victims: ['a'], mafiaVictims: ['a'] }] });
   const text = r.context.MafiaAudio.phaseText(state, r.context.Lu, new Set());
-  assert.match(text, /^The village wakes\. Everyone, open your eyes\. Anu did not survive the night\./);
+  assert.match(text, /^Everyone, wake up\. Open your eyes\. Anu did not survive the night\./);
   const alreadyHeard = r.context.MafiaAudio.phaseText(state, r.context.Lu, new Set(['dawn']));
   assert.equal(alreadyHeard, r.context.Lu(state, false));
 });
@@ -209,13 +210,14 @@ test('no night-death clip when the Mafia kill is saved or there are only other-r
   for (const victims of [[], ['a']]) assert.equal(r.context.qy([{ id: 'd', type: 'dawn', victims, mafiaVictims: [] }], 'd').length, 0);
 });
 test('recordings begin at sample zero without a fade-in that hides the first syllable', async () => {
-  const calls = [], param = { setValueAtTime: (...v) => calls.push(['gain', ...v]), linearRampToValueAtTime() {} };
+  const calls = [], param = { setValueAtTime: (...v) => calls.push(['gain', ...v]), linearRampToValueAtTime: (...v) => calls.push(['ramp', ...v]) };
   const gain = { gain: param, connect() {}, disconnect() {} };
   const sourceNode = { connect() { return gain; }, start: (...args) => calls.push(['start', ...args]), disconnect() {} };
   const context = vm.createContext({});
   vm.runInContext(source.slice(source.indexOf('  function Wd('), source.indexOf('  var Yy =')), context);
   context.Wd({ currentTime: 10, createBufferSource: () => sourceNode, createGain: () => gain }, { duration: 16 }, {}, 0, false, 0);
   assert.deepEqual(calls[0], ['gain', 1, 10]); assert.deepEqual(calls.at(-1), ['start', 0, 0]);
+  assert.ok(!calls.some(c => c[0] === 'ramp' && c[1] === 0), 'the last syllable keeps full gain');
 });
 test('HTML embeds the current runtime, fixed MP3 assets, and no removed recording references', () => {
   const html = fs.readFileSync(new URL('../Naatile-Mafia.html', import.meta.url), 'utf8');
@@ -225,4 +227,79 @@ test('HTML embeds the current runtime, fixed MP3 assets, and no removed recordin
   const removedName = ['kum', 'bidi', '.mp3'].join('');
   assert.equal(html.toLowerCase().includes(removedName), false);
   assert.equal(source.includes('i.serverNow - kt.at <= 7e3'), false, 'late join must not silently omit the current death clip');
+});
+
+function mixerRig(r) {
+  vm.runInContext(source.slice(source.indexOf('  function Wd('), source.indexOf('  var rg = ye(He(), 1);')), r.context);
+  const mixer = new r.context.ag(), sources = [], music = [], effects = [];
+  const param = () => ({value:1,setValueAtTime(){},linearRampToValueAtTime(){},setTargetAtTime(){},cancelScheduledValues(){}});
+  const gain = () => ({gain:param(),connect(){return this},disconnect(){}});
+  mixer.ctx = {state:'running',currentTime:0,sampleRate:48000,destination:{},
+    createGain:gain,createBuffer:()=>({duration:.8}),createBufferSource:()=>{
+      const node = {connect(){return gain()},disconnect(){},start(){sources.push(node)},stop(){node.onended?.()}};
+      return node;
+    }};
+  mixer.buses = Object.fromEntries(['master','music','ambience','effects','voice'].map(k=>[k,gain()]));
+  mixer.phase = 'dawn'; mixer.soundtrack = {levels:(...args)=>music.push(args),isPlayingClip:()=>false};
+  mixer.tone = () => effects.push('tone'); mixer.noise = () => effects.push('noise');
+  r.god.audio = mixer;
+  return {mixer,sources,music,effects};
+}
+for (const path of ['/audio/chath(2).mp3', '/audio/mohanlal.mp3']) test(`integrated mixer: continuous duck + complete God voice + ${path} + effect`, async () => {
+  const r = rig(), {mixer,sources,music,effects} = mixerRig(r), log = [];
+  mixer.deathBuffers.set(path, {duration:16,tag:path});
+  await mixer.beginExclusive();
+  const task = r.context.MafiaAudio.presentAnnouncement({
+    text:'Everyone, wake up. Anu did not survive the night.',current:()=>true,
+    speak:done=>r.god.say(view('dawn'),false,levels,0,'Everyone, wake up. Anu did not survive the night.',done),
+    wait:ms=>new Promise(resolve=>r.context.setTimeout(resolve,ms)),
+    acknowledge:async type=>{log.push(type);return true},
+    playDeath:()=>mixer.reveal(()=>true,undefined,[{path}]),
+    animate:async()=>{log.push('animation');mixer.effect('gunner',0,true)},
+    finished:()=>log.push('finished')
+  }).finally(()=>mixer.endExclusive());
+  await r.advance(700);
+  assert.equal(r.utterances[0].text,'Everyone, wake up. Anu did not survive the night.');
+  for (const sound of ['countdown','chat','save','select']) mixer.effect(sound);
+  mixer.playVoice({from:'p',mime:'audio/mp3',data:'ignored'});
+  assert.equal(effects.length,0); assert.equal(mixer.voices.size,0);
+  assert.equal(sources.filter(x=>!x.loop).length,0);
+  await r.advance(60000); assert.equal(log.length,0);
+  r.utterances[0].onend();
+  await r.advance(349); assert.equal(sources.filter(x=>!x.loop).length,0);
+  await r.advance(1);
+  const clip = sources.find(x=>!x.loop); assert.equal(clip.buffer.tag,path);
+  assert.ok(music.every(x=>x[2]===true),'BGM must never rise between God and death dialogue');
+  mixer.stopVoices(); assert.ok(music.at(-1)[2], 'clearing voice chat cannot clear the sequence hold');
+  assert.deepEqual(log,['announcementDone']);
+  clip.onended(); await r.advance(249); assert.deepEqual(log,['announcementDone']);
+  await r.advance(1); await task;
+  assert.deepEqual(log,['announcementDone','animation','finished','presentationDone']);
+  assert.ok(effects.length>0); assert.equal(mixer.exclusive,0);
+  assert.equal(music.at(-1)[2],false,'music returns only after the entire sequence');
+});
+for (const text of ['Mafia, wake up.', 'Doctor, wake up.', 'Detective, wake up.', 'Everyone, wake up.']) test(`literal command plays first-to-last word: ${text}`, async () => {
+  const r = rig(), done=[];
+  r.god.say(view('night'),false,levels,0,text,status=>done.push(status));
+  await r.advance(700); assert.equal(r.utterances[0].text,text);
+  assert.equal(done.length,0); r.utterances[0].onend();
+  await r.advance(349); assert.equal(done.length,0); assert.equal(r.god.busy,true);
+  await r.advance(1); assert.deepEqual(done,['ended']);
+});
+test('the looping warmup source survives late voice initialization and ends only after speech tail', async () => {
+  const r = rig({voices:[]}), {mixer,sources} = mixerRig(r);
+  r.god.say(view('night',{nightRole:'mafia'}),false,levels);
+  await r.advance(1000); const pad=sources[0]; assert.equal(pad.loop,true); assert.equal(r.utterances.length,0);
+  r.setVoices([{lang:'en-US',name:'Natural English'}]); await r.advance(700);
+  assert.equal(mixer.exclusive,1); r.utterances[0].onend(); await r.advance(350);
+  assert.equal(mixer.exclusive,0); assert.equal(r.god.utterance,null);
+});
+test('a stopped death buffer reports cancellation and cannot acknowledge or animate a completed presentation', async () => {
+  const r=rig(), {mixer,sources}=mixerRig(r), log=[];
+  mixer.deathBuffers.set('/clip',{duration:10});
+  const task=r.context.MafiaAudio.presentAnnouncement({text:'Anu died.',current:()=>true,
+    speak:done=>{done('ended');return true},wait:()=>Promise.resolve(),acknowledge:async type=>{log.push(type);return true},
+    playDeath:()=>mixer.reveal(()=>true,undefined,[{path:'/clip'}]),animate:()=>assert.fail('cancelled clip'),finished:()=>assert.fail('cancelled clip')});
+  await flush(); assert.equal(sources.length,1); mixer.stopReveal(); await task;
+  assert.deepEqual(log,['announcementDone']);
 });

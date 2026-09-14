@@ -67,6 +67,11 @@ function phase(r, p, seconds = 60) {
   r.roleCompleteAt = 0;
   r.announcementAcks = {};
   r.presentationAcks = {};
+  r.audioHolds = {};
+  // Known foreground clients get time to receive the new phase and start audio.
+  for (const [id, seen] of Object.entries(r.audioPeers || {})) {
+    if (seen > Date.now() - AUDIO_LEASE_MS) r.audioHolds[id] = Date.now() + AUDIO_LEASE_MS;
+  }
   r.presentationSkipped = false;
   r.deadline = Date.now() + seconds * 1e3;
   r.paused = false;
@@ -179,9 +184,33 @@ function resolveVote(r, early = false) {
   r.votes = {};
   cycle(r);
 }
+// Foreground clients renew these leases on their normal poll. A disconnected
+// browser expires; a connected slow voice/recording is never cut by a timer.
+var AUDIO_LEASE_MS = 20000;
+function audioBlocked(r) {
+  return Object.values(r.audioHolds || {}).some(until => until > Date.now());
+}
+function audioPulse(r, pid, body) {
+  if (body.audioProtocol !== 2) return false;
+  r.audioPeers ||= {};
+  r.audioHolds ||= {};
+  if (body.audioVisible === false) {
+    delete r.audioPeers[pid];
+    delete r.audioHolds[pid];
+  } else {
+    r.audioPeers[pid] = Date.now();
+    if (body.audioEpoch === r.epoch) {
+      if (body.audioBusy) r.audioHolds[pid] = Date.now() + AUDIO_LEASE_MS;
+      else delete r.audioHolds[pid];
+    }
+  }
+  return true;
+}
 function tick(r) {
   if (r.config.local || r.paused || ["lobby", "end"].includes(r.phase)) return false;
-  if (Date.now() < r.deadline && !(r.phase === "night" && r.roleCompleteAt && Date.now() >= r.roleCompleteAt)) return false;
+  const allVoted = ["vote", "runoff"].includes(r.phase) && living(r).every(p => Object.hasOwn(r.votes, p.id));
+  if (!allVoted && Date.now() < r.deadline && !(r.phase === "night" && r.roleCompleteAt && Date.now() >= r.roleCompleteAt)) return false;
+  if (audioBlocked(r)) return false;
   // Death playback uses real completion, not an estimated speech duration.
   // A bounded fallback keeps a disconnected primary host from blocking the room.
   if (["dawn", "verdict"].includes(r.phase) && !r.presentationAcks?.[r.hostId] && Date.now() < r.phaseStartedAt + 150000) return false;
@@ -250,9 +279,14 @@ function act(r, pid, type, data = {}, local = false) {
     r.coHostId = data.target;
     return;
   }
+  if (type === "audioHold") {
+    if (data.epoch !== r.epoch) throw Error("The phase changed.");
+    (r.audioPeers ||= {})[pid] = Date.now();
+    (r.audioHolds ||= {})[pid] = Date.now() + AUDIO_LEASE_MS;
+    return;
+  }
   if (["announcementDone", "presentationDone"].includes(type)) {
     if (data.epoch !== r.epoch) throw Error("The phase changed.");
-    if (r.paused) throw Error("Resume the round first.");
     const key = type === "announcementDone" ? "announcementAcks" : "presentationAcks";
     if (type === "presentationDone" && !r.announcementAcks?.[pid]) throw Error("Finish the announcement first.");
     (r[key] ||= {})[pid] = true;
@@ -265,7 +299,10 @@ function act(r, pid, type, data = {}, local = false) {
   }
   if (["start", "advance", "pause", "rematch", "continue"].includes(type)) {
     if (pid !== r.hostId && !(pid === r.coHostId && ["continue", "pause"].includes(type))) throw Error("Only the room host can use this control.");
-    if (type === "start") return start(r);
+    if (type === "start") {
+      if (audioBlocked(r)) throw Error("Wait for the announcement to finish.");
+      return start(r);
+    }
     if (type === "continue") {
       if (data.epoch !== r.epoch) throw Error("The phase changed.");
       if (r.paused) throw Error("Resume the round first.");
@@ -297,6 +334,7 @@ function act(r, pid, type, data = {}, local = false) {
     }
     if (type === "rematch") {
       if (r.phase !== "end") throw Error("Finish this match first.");
+      if (audioBlocked(r)) throw Error("Wait for the announcement and dialogue to finish.");
       const fresh = createRoom(p.name, r.config);
       fresh.epoch = r.epoch + 1;
       for (const k of Object.keys(fresh)) if (!["id", "players", "sessions", "revision", "hostId", "coHostId"].includes(k)) r[k] = fresh[k];
@@ -339,7 +377,7 @@ function act(r, pid, type, data = {}, local = false) {
     if (!["vote", "runoff"].includes(r.phase)) throw Error("Voting is not open.");
     if (data.target !== "skip" && (!target || target.id === pid || r.phase === "runoff" && !r.runoff.includes(target.id))) throw Error("Choose an eligible player or Skip.");
     r.votes[pid] = data.target;
-    if (living(r).every((x) => Object.hasOwn(r.votes, x.id))) resolveVote(r, true);
+    if (living(r).every((x) => Object.hasOwn(r.votes, x.id)) && !audioBlocked(r)) resolveVote(r, true);
     return;
   }
   if (r.phase !== "night") throw Error("Night actions are not open.");
@@ -382,7 +420,7 @@ function completeRole(r) {
 }
 function canSkip(r, pid) {
   return (pid === r.hostId || pid === r.coHostId) && !r.paused &&
-    ["intro", "sleep", "discussion", "dawn", "verdict", "end"].includes(r.phase) && !r.presentationSkipped && !!r.announcementAcks?.[pid];
+    ["intro", "sleep", "discussion", "dawn", "verdict", "end"].includes(r.phase) && !r.presentationSkipped && !audioBlocked(r) && !!r.presentationAcks?.[pid];
 }
 function publicView(r, pid) {
   const p = r.players.find((x) => x.id === pid && x.kind === "player");
@@ -394,6 +432,7 @@ function publicView(r, pid) {
     hostId: r.hostId,
     coHostId: r.coHostId || null,
     canSkip: canSkip(r, pid),
+    audioBlocked: audioBlocked(r),
     presentationSkipped: !!r.presentationSkipped,
     phase: r.phase,
     epoch: r.epoch,
@@ -467,7 +506,11 @@ async function POST(req) {
       if (!sess) return fail("Seat not found. Reconnect using this browser, or join a new table.", 403);
       const pid = sess.pid, p = r.players.find((x) => x.id === pid && x.kind === "player");
       if (!p) return fail("Invalid seat.", 403);
-      if (tick(r)) {
+      // Refresh before tick so a last-second heartbeat cannot lose its phase.
+      const pulsed = audioPulse(r, pid, b);
+      if (b.op === "command" && b.type === "audioHold" && b.data?.epoch === r.epoch) act(r, pid, "audioHold", b.data);
+      const advanced = tick(r);
+      if (pulsed || advanced) {
         r.revision++;
         const result = await db.prepare("UPDATE mafia_rooms SET state=?,revision=revision+1,updated=? WHERE code=? AND revision=?").bind(JSON.stringify(r), now, code, row.revision).run();
         if (!result.meta.changes) continue;

@@ -5,6 +5,9 @@ const intro = fs.readFileSync(new URL('./intro.html', import.meta.url), 'utf8').
 const introPattern = /<div class="game-intro"[^]*?<\/div><\/div>/;
 if (!introPattern.test(html)) throw Error('Opening screen not found; refusing to modify an unknown HTML layout.');
 html = html.replace(introPattern, () => intro);
+const cardCSS = fs.readFileSync(new URL('./role-card.css', import.meta.url), 'utf8');
+html = html.replace(/<style id="role-card-upgrade">[^]*?<\/style>/, '');
+html = html.replace('</head>', '<style id="role-card-upgrade">' + cardCSS + '</style></head>');
 const scripts = [...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)];
 if (scripts.length !== 3) throw Error('Expected three inline scripts; refusing to modify an unknown HTML layout.');
 const code = ['audio-runtime.js', 'client.js'].map(name => fs.readFileSync(new URL(name, import.meta.url), 'utf8')).join('\n');

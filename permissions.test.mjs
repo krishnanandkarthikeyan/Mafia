@@ -32,7 +32,7 @@ test('only the primary host can assign, replace, or remove a co-host', () => {
   assert.equal(room.hostId, host.id);
 });
 for (const phase of ['intro', 'sleep', 'discussion', 'dawn', 'verdict', 'end']) {
-  for (const manager of ['host', 'cohost']) test(`${manager} can skip ${phase} only after their announcement finishes`, () => {
+  for (const manager of ['host', 'cohost']) test(`${manager} can skip ${phase} only after their entire presentation finishes`, () => {
     const t = table(), { game, room, command } = t;
     game.phase(room, phase, 40);
     if (phase === 'dawn') room.events.push({ id: 'death', type: 'dawn', victims: [t.normal.id], mafiaVictims: [t.normal.id], night: room.night });
@@ -41,6 +41,8 @@ for (const phase of ['intro', 'sleep', 'discussion', 'dawn', 'verdict', 'end']) 
     assert.equal(game.publicView(room, player.id).canSkip, false);
     assert.throws(() => command(player, 'continue'), /Finish God's announcement/);
     command(player, 'announcementDone');
+    assert.equal(game.publicView(room, player.id).canSkip, false, 'speech end does not permit cutting the death dialogue');
+    command(player, 'presentationDone');
     assert.equal(game.publicView(room, player.id).canSkip, true);
     const epoch = room.epoch;
     command(player, 'continue');
@@ -83,7 +85,7 @@ test('co-host cannot start/rematch or inherit primary ownership', () => {
 });
 test('revocation takes effect immediately on the server and in public controls', () => {
   const t = table(); t.game.phase(t.room, 'discussion', 60);
-  t.command(t.cohost, 'announcementDone'); assert.equal(t.game.canSkip(t.room, t.cohost.id), true);
+  t.command(t.cohost, 'announcementDone'); t.command(t.cohost, 'presentationDone'); assert.equal(t.game.canSkip(t.room, t.cohost.id), true);
   t.command(t.host, 'cohost', { target: null });
   assert.equal(t.game.publicView(t.room, t.cohost.id).canSkip, false);
   assert.throws(() => t.command(t.cohost, 'continue'), /Only the room host/);
@@ -91,7 +93,7 @@ test('revocation takes effect immediately on the server and in public controls',
 });
 test('stale acknowledgements and stale skip requests cannot affect a new phase', () => {
   const t = table(); t.game.phase(t.room, 'discussion', 60); const old = t.room.epoch;
-  t.command(t.host, 'announcementDone'); t.command(t.host, 'continue');
+  t.command(t.host, 'announcementDone'); t.command(t.host, 'presentationDone'); t.command(t.host, 'continue');
   assert.equal(t.room.phase, 'vote');
   for (const action of ['announcementDone', 'presentationDone', 'continue']) assert.throws(() => t.command(t.host, action, { epoch: old }), /phase changed/);
   assert.equal(t.game.canSkip(t.room, t.host.id), false);
@@ -136,4 +138,61 @@ test('co-host management does not reveal any additional secret roles or notes', 
   const view = t.game.publicView(t.room, t.cohost.id);
   assert.ok(view.players.every(p => p.role === null)); assert.equal(view.god, null);
   assert.equal(view.coHostId, t.cohost.id); assert.equal(view.hostId, t.host.id);
+});
+
+for (const name of ['intro', 'sleep', 'night', 'discussion', 'vote', 'runoff', 'dawn', 'verdict']) test(`${name}: a connected slow player keeps the phase until audio completes`, () => {
+  const t = table(); t.game.phase(t.room, name, 1);
+  t.room.nightRole = 'doctor';
+  t.command(t.host, 'announcementDone'); t.command(t.host, 'presentationDone');
+  const deadline = t.room.deadline, epoch = t.room.epoch;
+  t.command(t.normal, 'audioHold');
+  // Deliberately longer than the old 150-second death timeout.
+  for (let n = 0; n < 18; n++) {
+    t.advanceTime(10000);
+    t.game.audioPulse(t.room, t.normal.id, { audioProtocol: 2, audioEpoch: epoch, audioBusy: true });
+    assert.equal(t.game.tick(t.room), false);
+    assert.equal(t.game.canSkip(t.room, t.host.id), false);
+    assert.equal(t.room.epoch, epoch);
+  }
+  assert.equal(t.room.deadline, deadline, 'decision deadlines are not extended by reminders');
+  t.command(t.normal, 'announcementDone'); t.command(t.normal, 'presentationDone');
+  t.game.audioPulse(t.room, t.normal.id, { audioProtocol: 2, audioEpoch: epoch, audioBusy: false });
+  assert.equal(t.game.tick(t.room), true);
+});
+test('new phases reserve playback time for every recently connected player', () => {
+  const t = table();
+  for (const player of t.players) t.game.audioPulse(t.room, player.id, { audioProtocol: 2, audioEpoch: t.room.epoch, audioBusy: false });
+  t.game.phase(t.room, 'sleep', 1);
+  assert.equal(Object.keys(t.room.audioHolds).length, 8);
+  t.advanceTime(2000); assert.equal(t.game.tick(t.room), false);
+  // A host finishing cannot release another person's recording.
+  t.game.audioPulse(t.room, t.host.id, { audioProtocol: 2, audioEpoch: t.room.epoch, audioBusy: false });
+  assert.equal(t.game.tick(t.room), false);
+  t.advanceTime(18001); assert.equal(t.game.tick(t.room), true, 'disconnected leases expire');
+});
+test('all votes can be submitted during a reminder but resolution waits for its end', () => {
+  const t = table(); t.game.phase(t.room, 'vote', 60);
+  t.command(t.normal, 'audioHold');
+  for (const p of t.players) t.command(p, 'vote', {target: 'skip'});
+  assert.equal(t.room.phase, 'vote'); assert.equal(t.game.tick(t.room), false);
+  t.game.audioPulse(t.room, t.normal.id, {audioProtocol:2,audioEpoch:t.room.epoch,audioBusy:false});
+  assert.equal(t.game.tick(t.room), true); assert.equal(t.room.phase, 'verdict');
+});
+test('pause does not invalidate a real completion; rematch cannot cut victory speech', () => {
+  const t = table(); t.game.phase(t.room, 'dawn', 40);
+  t.command(t.normal, 'audioHold'); t.command(t.host, 'pause');
+  t.command(t.normal, 'announcementDone'); t.command(t.normal, 'presentationDone');
+  assert.equal(t.room.presentationAcks[t.normal.id], true);
+  t.game.phase(t.room, 'end', 0); t.command(t.normal, 'audioHold');
+  assert.throws(() => t.command(t.host, 'rematch'), /Wait for the announcement/);
+  t.advanceTime(20001); t.command(t.host, 'rematch'); assert.equal(t.room.phase, 'lobby');
+});
+test('stale heartbeats never clear a newly reserved phase lease or expose private holds', () => {
+  const t = table(); const old = t.room.epoch;
+  t.game.audioPulse(t.room, t.normal.id, {audioProtocol:2,audioEpoch:old,audioBusy:true});
+  t.game.phase(t.room, 'sleep', 12);
+  t.game.audioPulse(t.room, t.normal.id, {audioProtocol:2,audioEpoch:old,audioBusy:false});
+  assert.equal(t.game.audioBlocked(t.room), true);
+  const view = t.game.publicView(t.room, t.host.id);
+  assert.equal(view.audioBlocked, true); assert.equal(view.audioHolds, undefined); assert.equal(view.audioPeers, undefined);
 });

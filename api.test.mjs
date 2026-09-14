@@ -51,6 +51,8 @@ test('eight authenticated clients: co-host controls, revocation, decisions, and 
   await command(normal, 'announcementDone', { epoch, playerId: coId });
   assert.equal((await poll(cohost)).view.canSkip, false);
   await command(cohost, 'announcementDone', { epoch });
+  assert.equal((await poll(cohost)).view.canSkip, false);
+  await command(cohost, 'presentationDone', { epoch });
   assert.equal((await poll(cohost)).view.canSkip, true);
   await command(normal, 'continue', { epoch }, 400);
   const voting = (await command(cohost, 'continue', { epoch })).view;
@@ -76,7 +78,27 @@ test('eight authenticated clients: co-host controls, revocation, decisions, and 
   await command(cohost, 'continue', { epoch }, 400);
   await command(cohost, 'pause', { epoch }, 400);
   await command(owner, 'announcementDone', { epoch });
+  await command(owner, 'presentationDone', { epoch });
   assert.equal((await command(owner, 'continue', { epoch })).view.phase, 'discussion');
+
+  // Real authenticated HTTP clients publish their own audio state. One slow
+  // client must block the co-host even after the co-host's death clip has ended.
+  epoch = await setPhase('dawn');
+  const audioPoll = (client, busy) => api({op:'poll',code:host.code,token:client.token,audioProtocol:2,audioVisible:true,audioEpoch:epoch,audioBusy:busy});
+  for (const client of clients) await audioPoll(client, true);
+  await command(owner, 'announcementDone', {epoch});
+  await command(owner, 'presentationDone', {epoch});
+  for (const client of clients.slice(0,-1)) await audioPoll(client, false);
+  assert.equal((await poll(owner)).view.audioBlocked, true);
+  await command(owner, 'continue', {epoch}, 400);
+  await audioPoll(clients.at(-1), false);
+  assert.equal((await poll(owner)).view.canSkip, true);
+  assert.equal((await command(owner, 'continue', {epoch})).view.phase, 'discussion');
+  // All eight foreground clients are reserved in the next phase, before speech
+  // can be submitted. A stale last-phase poll cannot clear those new holds.
+  const next = await audioPoll(clients.at(-1), false);
+  assert.equal(next.view.audioBlocked, true);
+  assert.equal(next.view.audioHolds, undefined);
 
   const response = await fetch(origin);
   assert.equal(response.status, 200); assert.match(response.headers.get('content-type'), /text\/html/);
