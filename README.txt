@@ -1,8 +1,5 @@
 NAATILE MAFIA — INDEPENDENT HTML + MULTIPLAYER SERVER
 
-This is the actual game code, not an iframe pointing at ChatGPT.
-No ChatGPT account, OpenAI API key, or ChatGPT-hosted game service is needed.
-The computer moderator uses game rules and device speech, not a GPT model.
 
 FILES
 Naatile-Mafia.html — full HTML, CSS, JavaScript, game art, fonts and audio.
