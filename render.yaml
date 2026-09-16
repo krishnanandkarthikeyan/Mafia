@@ -1,11 +1,16 @@
 services:
   - type: web
-    name: naatile-mafia
-    runtime: node
-    plan: free
-    buildCommand: npm install
-    startCommand: npm start
-    healthCheckPath: /
+    name: kazhutha-game
+    runtime: static
+    buildCommand: node build.mjs
+    staticPublishPath: ./dist
     envVars:
-      - key: NODE_VERSION
-        value: 22.13.0
+      - key: SKIP_INSTALL_DEPS
+        value: "true"
+    headers:
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin

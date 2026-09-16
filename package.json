@@ -1,15 +1,12 @@
 {
-  "name": "naatile-mafia",
-  "version": "1.0.1",
+  "name": "kazhutha-render",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Naatile Mafia multiplayer web game",
-  "engines": {
-    "node": ">=22.13.0"
-  },
   "scripts": {
-    "start": "node server.mjs",
-    "build": "node build.mjs",
-    "test": "node --test tests/*.test.mjs"
+    "build": "node build.mjs"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }
